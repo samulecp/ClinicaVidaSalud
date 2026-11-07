@@ -8,7 +8,7 @@ RUN npm run build
 FROM php:8.2-apache
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq-dev libzip-dev libpng-dev libjpeg62-turbo-dev \
+    libpq-dev libzip-dev libpng-dev libjpeg62-turbo-dev libonig-dev \
     libfreetype6-dev libicu-dev libcurl4-openssl-dev unzip \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j"$(nproc)" \
