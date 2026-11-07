@@ -40,7 +40,6 @@ class PacientePortalController extends Controller
 
         $totalPendientesPago = Cita::where('paciente_id', $paciente->id)
             ->where('estado', 'Pendiente de pago')
-            ->where('pago_expira_en', '>', now())
             ->count();
 
         $totalAtendidas = Cita::where('paciente_id', $paciente->id)

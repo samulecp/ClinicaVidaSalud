@@ -46,7 +46,7 @@ class ReporteController extends Controller
             'hasta' => ['nullable', 'date', 'after_or_equal:desde'],
             'medico_id' => ['nullable', 'integer', 'exists:medicos,id'],
             'especialidad_id' => ['nullable', 'integer', 'exists:especialidades,id'],
-            'estado' => ['nullable', 'in:Programada,Atendida,Cancelada,Inasistencia'],
+            'estado' => ['nullable', 'in:Programada,Atendida,Cancelada,Inasistencia,Pendiente de pago'],
         ]);
 
         $citas = $this->consulta($request)->get();
@@ -124,14 +124,14 @@ class ReporteController extends Controller
         ]);
 
     $prompt = "
-Eres un asistente que interpreta búsquedas de reportes de citas médicas.
+Eres un asistente que interpreta bÃºsquedas de reportes de citas mÃ©dicas.
 
 Fecha actual: " . now()->format('Y-m-d') . "
 
-Interpreta esta instrucción:
+Interpreta esta instrucciÃ³n:
 " . $request->texto . "
 
-Médicos disponibles:
+MÃ©dicos disponibles:
 " . $medicos->toJson() . "
 
 Especialidades disponibles:
@@ -148,11 +148,11 @@ Devuelve exclusivamente un JSON con estas propiedades:
 
 Reglas:
 - Las fechas deben estar en formato YYYY-MM-DD.
-- Si se menciona este mes, usa desde el primer día del mes y hasta hoy.
-- Si se menciona este año, usa desde el primer día del año y hasta hoy.
-- El médico debe coincidir con uno de los disponibles. Devuelve su ID.
+- Si se menciona este mes, usa desde el primer dÃ­a del mes y hasta hoy.
+- Si se menciona este aÃ±o, usa desde el primer dÃ­a del aÃ±o y hasta hoy.
+- El mÃ©dico debe coincidir con uno de los disponibles. Devuelve su ID.
 - La especialidad debe coincidir con una disponible. Devuelve su ID.
-- El estado solo puede ser Programada, Atendida, Cancelada o Inasistencia.
+- El estado solo puede ser Programada, Atendida, Cancelada, Inasistencia o Pendiente de pago.
 - Si un filtro no se menciona, devuelve null.
 - No inventes IDs ni fechas.
 ";
@@ -192,7 +192,7 @@ Reglas:
 
         if (!is_array($filtros)) {
             return response()->json([
-                'error' => 'La IA devolvió una respuesta no válida.',
+                'error' => 'La IA devolviÃ³ una respuesta no vÃ¡lida.',
             ], 422);
         }
 
@@ -228,6 +228,7 @@ Reglas:
             'Atendida',
             'Cancelada',
             'Inasistencia',
+            'Pendiente de pago',
         ], true)) {
             $estado = null;
         }
@@ -249,3 +250,4 @@ Reglas:
     }
 }
 }
+

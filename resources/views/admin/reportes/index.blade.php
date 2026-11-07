@@ -99,7 +99,7 @@
                 <label class="mb-1 block text-sm font-medium">Estado</label>
                 <select name="estado" class="w-full rounded-lg border-gray-300">
                     <option value="">Todos</option>
-                    @foreach(['Programada', 'Atendida', 'Cancelada', 'Inasistencia'] as $estado)
+                    @foreach(['Programada', 'Atendida', 'Cancelada', 'Inasistencia', 'Pendiente de pago'] as $estado)
                         <option value="{{ $estado }}"
                             @selected(request('estado') == $estado)>
                             {{ $estado }}
@@ -151,7 +151,7 @@
             <p class="mt-2 text-3xl font-bold text-blue-700">{{ $total }}</p>
         </div>
 
-        @foreach(['Programada', 'Atendida', 'Cancelada', 'Inasistencia'] as $estado)
+        @foreach(['Programada', 'Atendida', 'Cancelada', 'Inasistencia', 'Pendiente de pago'] as $estado)
             <div class="rounded-xl bg-white p-5 shadow">
                 <p class="text-sm text-gray-500">{{ $estado }}</p>
                 <p class="mt-2 text-3xl font-bold text-gray-800">

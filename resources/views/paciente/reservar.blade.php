@@ -152,49 +152,82 @@
 
             
 {{-- INFORMACIÓN DEL PAGO --}}
-<div class="rounded-xl border border-blue-200 bg-blue-50 p-5">
+
+{{-- INFORMACIÓN DEL PAGO QR --}}
+<div class="rounded-xl border border-green-200 bg-green-50 p-5">
 
     <div class="flex items-center gap-2">
-        <span class="text-lg">💳</span>
+        <span class="text-xl">💳</span>
         <h3 class="font-bold text-slate-800">
-            Pago de la consulta
+            Pago de la consulta mediante QR
         </h3>
     </div>
 
-    <div class="mt-3 flex items-center justify-between">
-        <span class="text-sm text-slate-600">
+    <div class="mt-4 flex items-center justify-between rounded-lg bg-white p-4">
+        <span class="text-sm font-medium text-slate-600">
             Precio de la consulta
         </span>
 
-        <span class="text-xl font-bold text-slate-900">
-            Bs 100.00
+        <span class="text-2xl font-bold text-green-700">
+            Bs {{ number_format((float) $precioConsulta, 2) }}
         </span>
     </div>
 
-    <div class="mt-3 rounded-lg bg-white p-3">
-        <div class="flex items-center gap-3">
-            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
-                <span class="font-bold text-blue-700">P</span>
-            </div>
+    <div class="mt-4 rounded-xl bg-white p-4 text-center">
 
-            <div>
-                <p class="text-sm font-bold text-slate-800">
-                    Pago mediante PayPal
-                </p>
-                <p class="text-xs text-slate-500">
-                    Serás redirigido a PayPal para completar el pago.
-                </p>
-            </div>
-        </div>
+        <p class="mb-3 font-semibold text-slate-800">
+            Escanea el siguiente código QR
+        </p>
+
+        <img
+            src="{{ asset('images/pago-qr.png') }}"
+            alt="Código QR de Banco Ganadero"
+            class="mx-auto w-full max-w-xs rounded-lg"
+        >
+
+        <p class="mt-3 text-sm font-bold text-slate-800">
+            Banco Ganadero
+        </p>
+
+        <p class="text-sm text-slate-600">
+            Cuellar Panoso Wilmar Samuel
+        </p>
+
+        <p class="text-sm text-slate-600">
+            Cuenta: 1310526789
+        </p>
     </div>
 
-    <p class="mt-3 text-xs text-slate-600">
-        El importe se convertirá de bolivianos a dólares estadounidenses
-        utilizando el tipo de cambio registrado al momento de la reserva.
-        Dispondrás de 15 minutos para completar el pago.
+    <div class="mt-4 rounded-lg border border-green-200 bg-white p-4">
+        <p class="text-sm font-semibold text-slate-800">
+            Instrucciones de pago
+        </p>
+
+        <ol class="mt-2 list-inside list-decimal space-y-2 text-sm text-slate-600">
+            <li>Primero registra tu reserva.</li>
+            <li>Escanea el código QR desde tu aplicación bancaria.</li>
+            <li>Introduce manualmente el importe de la consulta: Bs {{ number_format((float) $precioConsulta, 2) }}.</li>
+            <li>Realiza la transferencia y guarda el comprobante.</li>
+            <li>Envía el comprobante por WhatsApp a la clínica.</li>
+        </ol>
+
+        <a
+            href="https://wa.me/59176316165?text={{ urlencode('Hola, acabo de realizar el pago de mi cita médica. Adjunto mi comprobante de transferencia.') }}"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="mt-4 flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-3 text-sm font-bold text-white hover:bg-green-700"
+        >
+            Enviar comprobante por WhatsApp
+        </a>
+    </div>
+
+    <p class="mt-3 text-xs text-slate-500">
+        Tu cita permanecerá pendiente de pago hasta que recepción
+        verifique la transferencia y apruebe el pago.
     </p>
 
 </div>
+
 
 
             {{-- BOTONES --}}
@@ -210,7 +243,7 @@
                         id="btnReservar"
                         class="rounded-lg px-5 py-3 text-sm font-semibold"
                         style="background-color:#1d4ed8;color:white;">
-                    Continuar al pago con PayPal
+                    Continuar
                 </button>
 
             </div>

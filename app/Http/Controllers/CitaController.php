@@ -25,7 +25,8 @@ class CitaController extends Controller
         $citas = Cita::with([
             'paciente',
             'medico',
-            'especialidad'
+            'especialidad',
+            'pagos'
         ])
             ->orderByDesc('fecha')
             ->orderByDesc('hora_inicio')
@@ -227,6 +228,64 @@ Pago::create([
     }
 
     
+    /**
+     * Aprobar un pago QR verificado por administración o recepción.
+     */
+    public function aprobarPago(Request $request, Cita $cita)
+    {
+        $datos = $request->validate([
+            'referencia_pago' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        DB::transaction(function () use ($cita, $datos) {
+            $citaBloqueada = Cita::whereKey($cita->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($citaBloqueada->estado !== 'Pendiente de pago') {
+                throw ValidationException::withMessages([
+                    'pago' => 'Esta cita ya no está pendiente de pago.',
+                ]);
+            }
+
+            $pago = Pago::where('cita_id', $citaBloqueada->id)
+                ->where('estado', 'Pendiente')
+                ->orderByDesc('id')
+                ->lockForUpdate()
+                ->first();
+
+            if (!$pago) {
+                throw ValidationException::withMessages([
+                    'pago' => 'No se encontró un pago pendiente para esta cita.',
+                ]);
+            }
+
+            $pago->update([
+                'usuario_id' => auth()->id(),
+                'metodo' => 'qr',
+                'estado' => 'Aprobado',
+                'referencia' => $datos['referencia_pago'] ?? $pago->referencia,
+                'pagado_en' => now(),
+            ]);
+
+            $citaBloqueada->update([
+                'estado' => 'Programada',
+                'pago_expira_en' => null,
+            ]);
+
+            HistorialCita::create([
+                'cita_id' => $citaBloqueada->id,
+                'usuario_id' => auth()->id(),
+                'accion' => 'Pago QR aprobado',
+                'detalle' => 'Recepción/administración verificó el comprobante de transferencia QR y aprobó el pago. La cita pasó a estado Programada.',
+            ]);
+        });
+
+        return redirect()
+            ->route($this->rutaCitas() . '.index')
+            ->with('success', 'Pago QR aprobado. La cita quedó programada.');
+    }
+
     /**
      * Cancelar una cita sin eliminarla de la base de datos.
      */

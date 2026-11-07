@@ -10,7 +10,6 @@ use App\Models\Pago;
 use App\Models\Especialidad;
 use App\Services\DisponibilidadCitas;
 use App\Services\PayPalService;
-use App\Services\TipoCambioBcb;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -37,18 +36,16 @@ class PacienteCitaController extends Controller
             ->orderBy('nombre')
             ->get();
 
-        return view('paciente.reservar', compact('especialidades'));
+        $precioConsulta = ConfiguracionSistema::actual()->precio_consulta;
+
+        return view('paciente.reservar', compact('especialidades', 'precioConsulta'));
     }
 
     /**
-     * Crear cita pendiente y enviar al paciente a PayPal.
+     * Crear una cita pendiente de verificación de pago mediante QR.
      */
-    public function store(
-        Request $request,
-        DisponibilidadCitas $disponibilidad,
-        TipoCambioBcb $tipoCambio,
-        PayPalService $paypal
-    ) {
+    public function store(Request $request, DisponibilidadCitas $disponibilidad)
+    {
         $usuario = $request->user();
         $paciente = $usuario->paciente;
 
@@ -84,31 +81,17 @@ class PacienteCitaController extends Controller
             ]);
         }
 
-        // Obtener la cotización antes de reservar.
-        try {
-            $conversion = $tipoCambio->convertirABolivianos(
-                (float) ConfiguracionSistema::actual()->precio_consulta
-            );
-        } catch (Throwable $e) {
-            throw ValidationException::withMessages([
-                'pago' => 'No se pudo consultar el tipo de cambio. Intenta nuevamente más tarde.',
-            ]);
-        }
-
         $resultado = DB::transaction(function () use (
             $datos,
             $paciente,
             $usuario,
-            $disponibilidad,
-            $conversion
+            $disponibilidad
         ) {
             $medico = Medico::whereKey($datos['medico_id'])
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            $especialidad = Especialidad::findOrFail(
-                $datos['especialidad_id']
-            );
+            $especialidad = Especialidad::findOrFail($datos['especialidad_id']);
 
             if (!$medico->estado || !$especialidad->estado) {
                 throw ValidationException::withMessages([
@@ -137,6 +120,8 @@ class PacienteCitaController extends Controller
                 ]);
             }
 
+            $precio = ConfiguracionSistema::actual()->precio_consulta;
+
             $cita = Cita::create([
                 'codigo' => 'CIT-' . now()->format('Ymd') . '-' . strtoupper(Str::random(6)),
                 'paciente_id' => $paciente->id,
@@ -148,27 +133,16 @@ class PacienteCitaController extends Controller
                 'estado' => 'Pendiente de pago',
                 'motivo' => $datos['motivo'] ?? null,
                 'observaciones' => null,
-                'pago_expira_en' => now()->addMinutes(15),
+                'pago_expira_en' => null,
             ]);
 
-            $pago = Pago::create([
+            Pago::create([
                 'cita_id' => $cita->id,
                 'usuario_id' => $usuario->id,
-                'monto' => $conversion['monto_bs'],
+                'monto' => $precio,
                 'moneda' => 'BOB',
-                'metodo' => 'paypal',
+                'metodo' => 'qr',
                 'estado' => 'Pendiente',
-                'tipo_cambio' => $conversion['tipo_cambio'],
-                'fecha_tipo_cambio' => Carbon::parse(
-                    $conversion['fecha_tipo_cambio']
-                ),
-                'monto_pasarela' => number_format(
-                    $conversion['monto_usd'],
-                    2,
-                    '.',
-                    ''
-                ),
-                'moneda_pasarela' => 'USD',
             ]);
 
             HistorialCita::create([
@@ -179,44 +153,15 @@ class PacienteCitaController extends Controller
                 'hora_anterior' => null,
                 'fecha_nueva' => $datos['fecha'],
                 'hora_nueva' => $turno['hora_inicio'],
-                'detalle' => 'Se reservó temporalmente el horario durante 15 minutos mientras se realiza el pago por PayPal.',
+                'detalle' => 'Reserva creada. El paciente debe pagar mediante QR y enviar el comprobante por WhatsApp para que recepción verifique y apruebe el pago.',
             ]);
 
-            return [
-                'cita' => $cita,
-                'pago' => $pago,
-            ];
+            return $cita;
         });
 
-        $cita = $resultado['cita'];
-        $pago = $resultado['pago'];
-
-        try {
-            $orden = $paypal->crearOrden(
-                number_format((float) $pago->monto_pasarela, 2, '.', ''),
-                $cita->codigo,
-                route('paciente.paypal.retorno'),
-                route('paciente.paypal.cancelado')
-            );
-
-            $pago->update([
-                'paypal_order_id' => $orden['id'],
-                'datos_pasarela' => $orden['datos'],
-            ]);
-
-            return redirect()->away($orden['url']);
-
-        } catch (Throwable $e) {
-            $this->cancelarReservaPendiente(
-                $cita,
-                $pago,
-                'No se pudo iniciar el pago en PayPal.'
-            );
-
-            return redirect()
-                ->route('paciente.citas')
-                ->with('error', 'No se pudo iniciar el pago. Tu horario fue liberado. Intenta nuevamente.');
-        }
+        return redirect()
+            ->route('paciente.citas')
+            ->with('success', 'Tu reserva fue registrada. Realiza el pago mediante QR y envía el comprobante por WhatsApp para que recepción lo verifique.');
     }
 
     /**
