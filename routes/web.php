@@ -246,4 +246,14 @@ Route::middleware('auth')->group(function () {
 
 });
 
+Route::get('/diagnostico-sesion', function () {
+    return response()->json([
+        'session_driver' => config('session.driver'),
+        'session_cookie' => config('session.cookie'),
+        'session_started' => session()->isStarted(),
+        'session_id' => session()->getId() !== '',
+        'session_class' => get_class(session()->driver()),
+    ]);
+});
+
 require __DIR__.'/auth.php';
