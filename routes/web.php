@@ -247,11 +247,22 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::get('/diagnostico-sesion', function () {
-    return response()->json([
+    $response = response()->json([
         'driver' => config('session.driver'),
         'started' => session()->isStarted(),
         'id_exists' => session()->getId() !== '',
     ])->withCookie(cookie('prueba-cookie', '123456', 10));
+
+    return response()->json([
+        'cookies_en_respuesta' => $response->headers->getCookies() !== [],
+        'cantidad_cookies' => count($response->headers->getCookies()),
+        'nombres' => array_map(
+            fn ($cookie) => $cookie->getName(),
+            $response->headers->getCookies()
+        ),
+    ])->withHeaders([
+        'Cache-Control' => 'no-store',
+    ]);
 });
 
 require __DIR__.'/auth.php';
