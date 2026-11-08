@@ -247,11 +247,9 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::get('/diagnostico-sesion', function () {
-    return response()->json([
-        'driver' => config('session.driver'),
-        'started' => session()->isStarted(),
-        'id_exists' => session()->getId() !== '',
-    ])->withCookie(cookie('prueba-cookie', '123456', 10));
+    return response('PRUEBA COOKIE', 200)
+        ->header('Content-Type', 'text/plain')
+        ->header('Set-Cookie', 'prueba-manual=123456; Path=/; Secure; HttpOnly; SameSite=Lax');
 });
 
 require __DIR__.'/auth.php';
