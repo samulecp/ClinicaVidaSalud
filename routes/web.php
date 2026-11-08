@@ -248,12 +248,10 @@ Route::middleware('auth')->group(function () {
 
 Route::get('/diagnostico-sesion', function () {
     return response()->json([
-        'session_driver' => config('session.driver'),
-        'session_cookie' => config('session.cookie'),
-        'session_started' => session()->isStarted(),
-        'session_id' => session()->getId() !== '',
-        'session_class' => get_class(session()->driver()),
-    ]);
+        'driver' => config('session.driver'),
+        'started' => session()->isStarted(),
+        'id_exists' => session()->getId() !== '',
+    ])->withCookie(cookie('prueba-cookie', '123456', 10));
 });
 
 require __DIR__.'/auth.php';
