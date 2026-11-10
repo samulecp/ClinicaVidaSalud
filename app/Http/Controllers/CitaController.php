@@ -116,6 +116,15 @@ class CitaController extends Controller
         }
 
         DB::transaction(function () use ($datos, $disponibilidad) {
+            DB::connection()->beforeExecuting(
+    function ($query, $bindings, $connection) {
+        Log::info('CITA SQL ANTES DE EJECUTAR', [
+            'sql' => $query,
+            'bindings' => $bindings,
+            'transaction_level' => $connection->transactionLevel(),
+        ]);
+    }
+);
             Log::info('CITA DEBUG 1: inicio de transacción', [
                 'paciente_id' => $datos['paciente_id'],
                 'medico_id' => $datos['medico_id'],
