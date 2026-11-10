@@ -247,26 +247,16 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::get('/diagnostico-sesion', function () {
-    $router = app('router');
-    $session = app('session.store');
-
     return response()->json([
+        'prueba' => 'RESPUESTA_LARAVEL',
         'entorno' => app()->environment(),
-
-        'sesiones' => [
-            'driver' => config('session.driver'),
-            'cookie' => config('session.cookie'),
-            'secure' => config('session.secure'),
-            'same_site' => config('session.same_site'),
-            'domain' => config('session.domain'),
-            'iniciada' => $session->isStarted(),
-            'almacenamiento' => get_class($session->getHandler()),
-        ],
-
-        'middleware_web' => $router->gatherRouteMiddleware(
-            request()->route()
-        ),
-    ]);
+        'driver' => config('session.driver'),
+        'sesion_iniciada' => app('session.store')->isStarted(),
+    ])
+    ->header('Content-Type', 'application/json')
+    ->header('X-Laravel-Probe', 'respuesta-laravel')
+    ->header('Cache-Control', 'no-store')
+    ->header('Set-Cookie', 'prueba-laravel=123456; Path=/; Secure; HttpOnly; SameSite=Lax');
 });
 
 require __DIR__.'/auth.php';
