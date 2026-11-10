@@ -147,6 +147,18 @@ class CitaController extends Controller
              * Bloquear al médico durante la operación.
              * Las reservas concurrentes deben usar este mismo bloqueo.
              */
+            $modeloMedico = new Medico();
+$conexionDefault = DB::connection();
+$conexionMedico = $modeloMedico->getConnection();
+
+Log::info('CITA DIAGNOSTICO CONEXIONES', [
+    'default_name' => $conexionDefault->getName(),
+    'medico_name' => $conexionMedico->getName(),
+    'default_object' => spl_object_id($conexionDefault),
+    'medico_object' => spl_object_id($conexionMedico),
+    'default_transaction' => $conexionDefault->transactionLevel(),
+    'medico_transaction' => $conexionMedico->transactionLevel(),
+]);
             try {
     $medico = Medico::whereKey($datos['medico_id'])
         ->lockForUpdate()
