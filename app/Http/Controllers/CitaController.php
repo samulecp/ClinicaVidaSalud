@@ -131,6 +131,18 @@ class CitaController extends Controller
                 'especialidad_id' => $datos['especialidad_id'],
                 'transaction_level' => DB::transactionLevel(),
             ]);
+            try {
+    DB::select('SELECT 1 AS prueba_inicio');
+
+    Log::info('CITA PRUEBA: SELECT inicial correcto');
+} catch (\Throwable $e) {
+    Log::error('CITA PRUEBA: SELECT inicial falló', [
+        'mensaje' => $e->getMessage(),
+        'clase' => get_class($e),
+    ]);
+
+    throw $e;
+}
             /*
              * Bloquear al médico durante la operación.
              * Las reservas concurrentes deben usar este mismo bloqueo.
