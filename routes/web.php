@@ -247,9 +247,26 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::get('/diagnostico-sesion', function () {
-    return response('PRUEBA COOKIE', 200)
-        ->header('Content-Type', 'text/plain')
-        ->header('Set-Cookie', 'prueba-manual=123456; Path=/; Secure; HttpOnly; SameSite=Lax');
+    $router = app('router');
+    $session = app('session.store');
+
+    return response()->json([
+        'entorno' => app()->environment(),
+
+        'sesiones' => [
+            'driver' => config('session.driver'),
+            'cookie' => config('session.cookie'),
+            'secure' => config('session.secure'),
+            'same_site' => config('session.same_site'),
+            'domain' => config('session.domain'),
+            'iniciada' => $session->isStarted(),
+            'almacenamiento' => get_class($session->getHandler()),
+        ],
+
+        'middleware_web' => $router->gatherRouteMiddleware(
+            request()->route()
+        ),
+    ]);
 });
 
 require __DIR__.'/auth.php';
