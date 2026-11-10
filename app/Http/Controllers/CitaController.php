@@ -3,18 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Models\Cita;
+use App\Models\ConfiguracionSistema;
 use App\Models\Especialidad;
 use App\Models\HistorialCita;
 use App\Models\Medico;
 use App\Models\Paciente;
+use App\Models\Pago;
 use App\Services\DisponibilidadCitas;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use App\Models\Pago;
-use App\Models\ConfiguracionSistema;
 
 class CitaController extends Controller
 {
@@ -27,7 +27,7 @@ class CitaController extends Controller
             'paciente',
             'medico',
             'especialidad',
-            'pagos'
+            'pagos',
         ])
             ->orderByDesc('fecha')
             ->orderByDesc('hora_inicio')
@@ -65,44 +65,44 @@ class CitaController extends Controller
         $datos = $request->validate([
             'paciente_id' => [
                 'required',
-                'exists:pacientes,id'
+                'exists:pacientes,id',
             ],
             'medico_id' => [
                 'required',
-                'exists:medicos,id'
+                'exists:medicos,id',
             ],
             'especialidad_id' => [
                 'required',
-                'exists:especialidades,id'
+                'exists:especialidades,id',
             ],
             'fecha' => [
                 'required',
                 'date_format:Y-m-d',
-                'after_or_equal:today'
+                'after_or_equal:today',
             ],
             'hora_inicio' => [
                 'required',
-                'date_format:H:i'
+                'date_format:H:i',
             ],
             'motivo' => [
                 'nullable',
                 'string',
-                'max:500'
+                'max:500',
             ],
             'observaciones' => [
                 'nullable',
                 'string',
-                'max:1000'
+                'max:1000',
             ],
             'metodo_pago' => [
-    'required',
-    'in:efectivo,qr',
-],
-'referencia_pago' => [
-    'nullable',
-    'string',
-    'max:255',
-],
+                'required',
+                'in:efectivo,qr',
+            ],
+            'referencia_pago' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
         ]);
 
         // Evitar reservar una hora que ya pasó.
@@ -111,67 +111,83 @@ class CitaController extends Controller
             && $datos['hora_inicio'] <= now()->format('H:i')
         ) {
             throw ValidationException::withMessages([
-                'hora_inicio' => 'No puedes reservar una hora que ya pasó.'
+                'hora_inicio' => 'No puedes reservar una hora que ya pasó.',
             ]);
         }
 
         DB::transaction(function () use ($datos, $disponibilidad) {
             Log::info('CITA DEBUG 1: inicio de transacción', [
-    'paciente_id' => $datos['paciente_id'],
-    'medico_id' => $datos['medico_id'],
-    'especialidad_id' => $datos['especialidad_id'],
-    'transaction_level' => DB::transactionLevel(),
-]);
+                'paciente_id' => $datos['paciente_id'],
+                'medico_id' => $datos['medico_id'],
+                'especialidad_id' => $datos['especialidad_id'],
+                'transaction_level' => DB::transactionLevel(),
+            ]);
             /*
              * Bloquear al médico durante la operación.
              * Las reservas concurrentes deben usar este mismo bloqueo.
              */
-            $medico = Medico::whereKey($datos['medico_id'])
-                ->lockForUpdate()
-                ->firstOrFail();
-                Log::info('CITA DEBUG 2: médico consultado', [
-    'medico_id' => $medico->id,
-]);
-Log::info('CITA DEBUG 3: antes de consultar paciente');
-try {
-    DB::select('SELECT 1 AS prueba');
-
-    Log::info('CITA DEBUG 3A: conexión y transacción operativas');
+            try {
+    $medico = Medico::whereKey($datos['medico_id'])
+        ->lockForUpdate()
+        ->firstOrFail();
 } catch (\Throwable $e) {
-    Log::error('CITA DEBUG 3A: fallo antes de consultar paciente', [
+    Log::error('CITA ERROR ORIGINAL MEDICO', [
         'mensaje' => $e->getMessage(),
         'clase' => get_class($e),
-        'transaction_level' => DB::transactionLevel(),
+        'sql' => $e instanceof \Illuminate\Database\QueryException
+            ? $e->getSql()
+            : null,
+        'bindings' => $e instanceof \Illuminate\Database\QueryException
+            ? $e->getBindings()
+            : null,
+        'trace' => $e->getTraceAsString(),
     ]);
 
     throw $e;
 }
+            Log::info('CITA DEBUG 2: médico consultado', [
+                'medico_id' => $medico->id,
+            ]);
+            Log::info('CITA DEBUG 3: antes de consultar paciente');
+            try {
+                DB::select('SELECT 1 AS prueba');
+
+                Log::info('CITA DEBUG 3A: conexión y transacción operativas');
+            } catch (\Throwable $e) {
+                Log::error('CITA DEBUG 3A: fallo antes de consultar paciente', [
+                    'mensaje' => $e->getMessage(),
+                    'clase' => get_class($e),
+                    'transaction_level' => DB::transactionLevel(),
+                ]);
+
+                throw $e;
+            }
 
             $paciente = Paciente::findOrFail(
                 $datos['paciente_id']
             );
             Log::info('CITA DEBUG 4: paciente consultado', [
-    'paciente_id' => $paciente->id,
-]);
+                'paciente_id' => $paciente->id,
+            ]);
             $especialidad = Especialidad::findOrFail(
                 $datos['especialidad_id']
             );
 
-            if (!$medico->estado) {
+            if (! $medico->estado) {
                 throw ValidationException::withMessages([
-                    'medico_id' => 'El médico no está activo.'
+                    'medico_id' => 'El médico no está activo.',
                 ]);
             }
 
-            if (!$paciente->estado) {
+            if (! $paciente->estado) {
                 throw ValidationException::withMessages([
-                    'paciente_id' => 'El paciente no está activo.'
+                    'paciente_id' => 'El paciente no está activo.',
                 ]);
             }
 
-            if (!$especialidad->estado) {
+            if (! $especialidad->estado) {
                 throw ValidationException::withMessages([
-                    'especialidad_id' => 'La especialidad no está activa.'
+                    'especialidad_id' => 'La especialidad no está activa.',
                 ]);
             }
 
@@ -181,10 +197,9 @@ try {
                 ->where('especialidades.estado', true)
                 ->exists();
 
-            if (!$atiendeEspecialidad) {
+            if (! $atiendeEspecialidad) {
                 throw ValidationException::withMessages([
-                    'especialidad_id' =>
-                        'El médico no atiende esa especialidad.'
+                    'especialidad_id' => 'El médico no atiende esa especialidad.',
                 ]);
             }
 
@@ -198,18 +213,17 @@ try {
                 $datos['hora_inicio']
             );
 
-            if (!$turno) {
+            if (! $turno) {
                 throw ValidationException::withMessages([
-                    'hora_inicio' =>
-                        'Ese horario ya no está disponible. Selecciona otro.'
+                    'hora_inicio' => 'Ese horario ya no está disponible. Selecciona otro.',
                 ]);
             }
 
             // Generar código único de la cita.
             do {
-                $codigo = 'CIT-' .
-                    now()->format('Ymd') .
-                    '-' .
+                $codigo = 'CIT-'.
+                    now()->format('Ymd').
+                    '-'.
                     Str::upper(Str::random(6));
             } while (Cita::where('codigo', $codigo)->exists());
 
@@ -226,33 +240,32 @@ try {
                 'observaciones' => $datos['observaciones'] ?? null,
             ]);
             // Registrar el pago recibido por administración o recepción.
-Pago::create([
-    'cita_id' => $cita->id,
-    'usuario_id' => auth()->id(),
-    'monto' => ConfiguracionSistema::actual()->precio_consulta,
-    'moneda' => 'BOB',
-    'metodo' => $datos['metodo_pago'],
-    'estado' => 'Aprobado',
-    'referencia' => $datos['referencia_pago'] ?? null,
-    'pagado_en' => now(),
-]);
+            Pago::create([
+                'cita_id' => $cita->id,
+                'usuario_id' => auth()->id(),
+                'monto' => ConfiguracionSistema::actual()->precio_consulta,
+                'moneda' => 'BOB',
+                'metodo' => $datos['metodo_pago'],
+                'estado' => 'Aprobado',
+                'referencia' => $datos['referencia_pago'] ?? null,
+                'pagado_en' => now(),
+            ]);
 
             // Registrar la acción en el historial.
             HistorialCita::create([
                 'cita_id' => $cita->id,
                 'usuario_id' => auth()->id(),
                 'accion' => 'Cita programada',
-                'detalle' => 'La cita fue programada desde el módulo de ' .
+                'detalle' => 'La cita fue programada desde el módulo de '.
     (auth()->user()->rol === 'recepcionista' ? 'recepción.' : 'administración.'),
             ]);
         });
 
-       return redirect()
-    ->route($this->rutaCitas() . '.index')
-    ->with('success', 'Cita programada correctamente.');
+        return redirect()
+            ->route($this->rutaCitas().'.index')
+            ->with('success', 'Cita programada correctamente.');
     }
 
-    
     /**
      * Aprobar un pago QR verificado por administración o recepción.
      */
@@ -279,7 +292,7 @@ Pago::create([
                 ->lockForUpdate()
                 ->first();
 
-            if (!$pago) {
+            if (! $pago) {
                 throw ValidationException::withMessages([
                     'pago' => 'No se encontró un pago pendiente para esta cita.',
                 ]);
@@ -307,7 +320,7 @@ Pago::create([
         });
 
         return redirect()
-            ->route($this->rutaCitas() . '.index')
+            ->route($this->rutaCitas().'.index')
             ->with('success', 'Pago QR aprobado. La cita quedó programada.');
     }
 
@@ -323,7 +336,7 @@ Pago::create([
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if (!in_array($cita->estado, ['Programada', 'Confirmada'])) {
+            if (! in_array($cita->estado, ['Programada', 'Confirmada'])) {
                 throw ValidationException::withMessages([
                     'cita' => 'Esta cita no se puede cancelar porque ya fue atendida, cancelada o está marcada como inasistencia.',
                 ]);
@@ -347,15 +360,14 @@ Pago::create([
     }
 
     private function esRecepcion(): bool
-{
-    return auth()->user()->rol === 'recepcionista';
-}
+    {
+        return auth()->user()->rol === 'recepcionista';
+    }
 
-private function rutaCitas(): string
-{
-    return $this->esRecepcion()
-        ? 'recepcion.citas'
-        : 'admin.citas';
-}
-
+    private function rutaCitas(): string
+    {
+        return $this->esRecepcion()
+            ? 'recepcion.citas'
+            : 'admin.citas';
+    }
 }
