@@ -133,6 +133,19 @@ class CitaController extends Controller
     'medico_id' => $medico->id,
 ]);
 Log::info('CITA DEBUG 3: antes de consultar paciente');
+try {
+    DB::select('SELECT 1 AS prueba');
+
+    Log::info('CITA DEBUG 3A: conexión y transacción operativas');
+} catch (\Throwable $e) {
+    Log::error('CITA DEBUG 3A: fallo antes de consultar paciente', [
+        'mensaje' => $e->getMessage(),
+        'clase' => get_class($e),
+        'transaction_level' => DB::transactionLevel(),
+    ]);
+
+    throw $e;
+}
 
             $paciente = Paciente::findOrFail(
                 $datos['paciente_id']
