@@ -10,6 +10,7 @@ use App\Models\Paciente;
 use App\Services\DisponibilidadCitas;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use App\Models\Pago;
@@ -115,7 +116,12 @@ class CitaController extends Controller
         }
 
         DB::transaction(function () use ($datos, $disponibilidad) {
-
+            Log::info('CITA DEBUG 1: inicio de transacción', [
+    'paciente_id' => $datos['paciente_id'],
+    'medico_id' => $datos['medico_id'],
+    'especialidad_id' => $datos['especialidad_id'],
+    'transaction_level' => DB::transactionLevel(),
+]);
             /*
              * Bloquear al médico durante la operación.
              * Las reservas concurrentes deben usar este mismo bloqueo.
@@ -123,11 +129,17 @@ class CitaController extends Controller
             $medico = Medico::whereKey($datos['medico_id'])
                 ->lockForUpdate()
                 ->firstOrFail();
+                Log::info('CITA DEBUG 2: médico consultado', [
+    'medico_id' => $medico->id,
+]);
+Log::info('CITA DEBUG 3: antes de consultar paciente');
 
             $paciente = Paciente::findOrFail(
                 $datos['paciente_id']
             );
-
+            Log::info('CITA DEBUG 4: paciente consultado', [
+    'paciente_id' => $paciente->id,
+]);
             $especialidad = Especialidad::findOrFail(
                 $datos['especialidad_id']
             );
