@@ -247,16 +247,14 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::get('/diagnostico-sesion', function () {
+    header('X-PHP-Native-Probe: funciona');
+    header('X-PHP-Native-Type: application/json');
+
     return response()->json([
-        'prueba' => 'RESPUESTA_LARAVEL',
+        'prueba' => 'LARAVEL_CON_PHP_NATIVO',
         'entorno' => app()->environment(),
         'driver' => config('session.driver'),
-        'sesion_iniciada' => app('session.store')->isStarted(),
-    ])
-    ->header('Content-Type', 'application/json')
-    ->header('X-Laravel-Probe', 'respuesta-laravel')
-    ->header('Cache-Control', 'no-store')
-    ->header('Set-Cookie', 'prueba-laravel=123456; Path=/; Secure; HttpOnly; SameSite=Lax');
+    ]);
 });
 
 require __DIR__.'/auth.php';
