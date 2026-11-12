@@ -96,12 +96,7 @@ class CitaController extends Controller
             ],
             'metodo_pago' => [
                 'required',
-                'in:efectivo,qr',
-            ],
-            'referencia_pago' => [
-                'nullable',
-                'string',
-                'max:255',
+                'in:efectivo',
             ],
         ]);
 
@@ -280,7 +275,6 @@ Log::info('CITA DIAGNOSTICO CONEXIONES', [
                 'moneda' => 'BOB',
                 'metodo' => $datos['metodo_pago'],
                 'estado' => 'Aprobado',
-                'referencia' => $datos['referencia_pago'] ?? null,
                 'pagado_en' => now(),
             ]);
 
@@ -331,9 +325,15 @@ Log::info('CITA DIAGNOSTICO CONEXIONES', [
                 ]);
             }
 
+            if ($pago->metodo !== 'qr') {
+                throw ValidationException::withMessages([
+                    'pago' => 'Este método de pago no admite aprobación manual desde este módulo.',
+                ]);
+            }
+
+            // usuario_id conserva al usuario que originó el pago; el verificador
+            // queda identificado en el historial de la cita.
             $pago->update([
-                'usuario_id' => auth()->id(),
-                'metodo' => 'qr',
                 'estado' => 'Aprobado',
                 'referencia' => $datos['referencia_pago'] ?? $pago->referencia,
                 'pagado_en' => now(),
@@ -348,7 +348,7 @@ Log::info('CITA DIAGNOSTICO CONEXIONES', [
                 'cita_id' => $citaBloqueada->id,
                 'usuario_id' => auth()->id(),
                 'accion' => 'Pago QR aprobado',
-                'detalle' => 'Recepción/administración verificó el comprobante de transferencia QR y aprobó el pago. La cita pasó a estado Programada.',
+                'detalle' => 'El usuario de administración/recepción verificó el comprobante QR y aprobó el pago. La cita pasó a estado Programada.',
             ]);
         });
 
@@ -358,38 +358,48 @@ Log::info('CITA DIAGNOSTICO CONEXIONES', [
     }
 
     /**
-     * Cancelar una cita sin eliminarla de la base de datos.
+     * Cancelar una cita sin modificar ni eliminar sus registros de pago.
      */
     public function cancelar(Cita $cita)
     {
         DB::transaction(function () use ($cita) {
-
-            // Bloquear la cita mientras se realiza la operación.
-            $cita = Cita::whereKey($cita->id)
+            $citaBloqueada = Cita::whereKey($cita->id)
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if (! in_array($cita->estado, ['Programada', 'Confirmada'])) {
+            if (! in_array($citaBloqueada->estado, [
+                'Pendiente de pago',
+                'Programada',
+                'Confirmada',
+            ], true)) {
                 throw ValidationException::withMessages([
                     'cita' => 'Esta cita no se puede cancelar porque ya fue atendida, cancelada o está marcada como inasistencia.',
                 ]);
             }
 
-            $cita->update([
+            $fechaAnterior = $citaBloqueada->fecha->format('Y-m-d');
+            $horaAnterior = $citaBloqueada->hora_inicio;
+
+            $citaBloqueada->update([
                 'estado' => 'Cancelada',
+                'pago_expira_en' => null,
             ]);
 
             HistorialCita::create([
-                'cita_id' => $cita->id,
+                'cita_id' => $citaBloqueada->id,
                 'usuario_id' => auth()->id(),
                 'accion' => 'Cita cancelada',
-                'detalle' => 'La cita fue cancelada desde el módulo de administración.',
+                'fecha_anterior' => $fechaAnterior,
+                'hora_anterior' => $horaAnterior,
+                'fecha_nueva' => null,
+                'hora_nueva' => null,
+                'detalle' => 'La cita fue cancelada desde el módulo de ' . ($this->esRecepcion() ? 'recepción' : 'administración') . '. El estado del pago se conservó sin cambios.',
             ]);
         });
 
         return redirect()
-            ->route('admin.citas.index')
-            ->with('success', 'La cita fue cancelada correctamente. El horario quedó disponible nuevamente.');
+            ->route($this->rutaCitas().'.index')
+            ->with('success', 'La cita fue cancelada. El registro y el estado del pago se conservaron sin cambios.');
     }
 
     private function esRecepcion(): bool

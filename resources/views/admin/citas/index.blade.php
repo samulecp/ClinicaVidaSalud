@@ -127,6 +127,8 @@
                                 @php
                                     $colores = [
                                         'Programada' => 'background-color: #dbeafe; color: #1d4ed8;',
+                                        'Pendiente de pago' => 'background-color: #fef3c7; color: #92400e;',
+                                        'Confirmada' => 'background-color: #dbeafe; color: #1d4ed8;',
                                         'Atendida' => 'background-color: #f3f4f6; color: #374151;',
                                         'Cancelada' => 'background-color: #fee2e2; color: #b91c1c;',
                                         'Inasistencia' => 'background-color: #fef3c7; color: #92400e;',
@@ -149,34 +151,40 @@
                                         ->first();
                                 @endphp
 
-                                @if($cita->estado === 'Pendiente de pago' && $pagoPendiente && $pagoPendiente->metodo === 'qr')
-                                    <form action="{{ route($rutaCitas . '.aprobar-pago', $cita) }}"
-                                          method="POST" class="min-w-40 space-y-2"
-                                          onsubmit="return confirm('¿Verificaste el comprobante y confirmas que el dinero llegó a la cuenta?');">
-                                        @csrf
-                                        @method('PATCH')
-                                        <input type="text" name="referencia_pago" maxlength="255"
-                                               placeholder="N.º de referencia (opcional)"
-                                               class="w-full rounded-md border-gray-300 text-xs">
-                                        <button type="submit"
-                                            class="w-full whitespace-nowrap rounded-lg bg-green-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-green-700">
-                                            Aprobar pago QR
-                                        </button>
-                                    </form>
-                                @elseif($cita->estado === 'Programada' && auth()->user()->rol === 'administrador')
-                                    <form action="{{ route('admin.citas.cancelar', $cita) }}"
-                                          method="POST"
-                                          onsubmit="return confirm('¿Estás seguro de cancelar esta cita? El horario quedará disponible nuevamente.');">
-                                        @csrf
-                                        @method('PATCH')
-                                        <button type="submit"
-                                            class="whitespace-nowrap rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-red-700">
-                                            Cancelar
-                                        </button>
-                                    </form>
-                                @else
-                                    <span class="text-xs text-gray-400">Sin acciones</span>
-                                @endif
+                                <div class="min-w-40 space-y-2">
+                                    @if($cita->estado === 'Pendiente de pago' && $pagoPendiente && $pagoPendiente->metodo === 'qr')
+                                        <form action="{{ route($rutaCitas . '.aprobar-pago', $cita) }}"
+                                              method="POST" class="space-y-2"
+                                              onsubmit="return confirm('¿Verificaste que el dinero llegó a la cuenta y confirmas la aprobación?');">
+                                            @csrf
+                                            @method('PATCH')
+                                            <input type="text" name="referencia_pago" maxlength="255"
+                                                   placeholder="N.º de referencia (opcional)"
+                                                   class="w-full rounded-md border-gray-300 text-xs">
+                                            <button type="submit"
+                                                class="w-full whitespace-nowrap rounded-lg bg-green-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-green-700">
+                                                Aprobar pago QR
+                                            </button>
+                                        </form>
+                                    @endif
+
+                                    @if(in_array($cita->estado, ['Pendiente de pago', 'Programada', 'Confirmada'], true))
+                                        <form action="{{ route($rutaCitas . '.cancelar', $cita) }}"
+                                              method="POST"
+                                              onsubmit="return confirm('¿Cancelar esta cita? El pago conservará su estado actual.');">
+                                            @csrf
+                                            @method('PATCH')
+                                            <button type="submit"
+                                                class="w-full whitespace-nowrap rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-red-700">
+                                                Cancelar cita
+                                            </button>
+                                        </form>
+                                    @endif
+
+                                    @if(!($cita->estado === 'Pendiente de pago' && $pagoPendiente && $pagoPendiente->metodo === 'qr') && !in_array($cita->estado, ['Pendiente de pago', 'Programada', 'Confirmada'], true))
+                                        <span class="text-xs text-gray-400">Sin acciones</span>
+                                    @endif
+                                </div>
                             </td>
 
                         </tr>
@@ -222,6 +230,8 @@
                         @php
                             $colores = [
                                 'Programada' => 'background-color: #dbeafe; color: #1d4ed8;',
+                                'Pendiente de pago' => 'background-color: #fef3c7; color: #92400e;',
+                                'Confirmada' => 'background-color: #dbeafe; color: #1d4ed8;',
                                 'Atendida' => 'background-color: #f3f4f6; color: #374151;',
                                 'Cancelada' => 'background-color: #fee2e2; color: #b91c1c;',
                                 'Inasistencia' => 'background-color: #fef3c7; color: #92400e;',
@@ -296,7 +306,7 @@
                         @if($cita->estado === 'Pendiente de pago' && $pagoPendiente && $pagoPendiente->metodo === 'qr')
                             <form action="{{ route($rutaCitas . '.aprobar-pago', $cita) }}"
                                   method="POST" class="space-y-2"
-                                  onsubmit="return confirm('¿Verificaste el comprobante y confirmas que el dinero llegó a la cuenta?');">
+                                  onsubmit="return confirm('¿Verificaste que el dinero llegó a la cuenta y confirmas la aprobación?');">
                                 @csrf
                                 @method('PATCH')
                                 <input type="text" name="referencia_pago" maxlength="255"
@@ -307,10 +317,12 @@
                                     Aprobar pago QR
                                 </button>
                             </form>
-                        @elseif($cita->estado === 'Programada' && auth()->user()->rol === 'administrador')
-                            <form action="{{ route('admin.citas.cancelar', $cita) }}"
+                        @endif
+
+                        @if(in_array($cita->estado, ['Pendiente de pago', 'Programada', 'Confirmada'], true))
+                            <form action="{{ route($rutaCitas . '.cancelar', $cita) }}"
                                   method="POST"
-                                  onsubmit="return confirm('¿Estás seguro de cancelar esta cita? El horario quedará disponible nuevamente.');">
+                                  onsubmit="return confirm('¿Cancelar esta cita? El pago conservará su estado actual.');">
                                 @csrf
                                 @method('PATCH')
                                 <button type="submit"

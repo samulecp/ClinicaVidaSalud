@@ -4,18 +4,8 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
-use App\Models\User;
-use App\Models\Paciente;
-use App\Models\Medico;
-use App\Models\Especialidad;
-use App\Models\HorarioMedico;
-use App\Models\Cita;
-use App\Models\Pago;
-use App\Models\HistorialCita;
-use App\Models\Bitacora;
-use App\Models\ConfiguracionSistema;
 use Carbon\Carbon;
+use RuntimeException;
 
 class ClinicaDemoSeeder extends Seeder
 {
@@ -23,309 +13,421 @@ class ClinicaDemoSeeder extends Seeder
     {
         DB::transaction(function () {
 
-            $password = Hash::make('Demo2026!');
+            /*
+            |--------------------------------------------------------------------------
+            | 1. Obtener los datos existentes que se conservarán
+            |--------------------------------------------------------------------------
+            */
 
-            // CONFIGURACIÓN
-            DB::table('configuraciones_sistema')->updateOrInsert(
-                ['id' => 1],
-                [
-                    'duracion_cita_minutos' => 15,
-                    'precio_consulta' => 100,
-                ]
-            );
+            $pacientes = DB::table('pacientes')
+                ->where('estado', true)
+                ->orderBy('id')
+                ->get(['id', 'user_id']);
 
-            // ADMINISTRADOR
-            $admin = User::updateOrCreate(
-                ['email' => 'admin@clinicavidasalud.test'],
-                [
-                    'name' => 'Administrador Demo',
-                    'password' => $password,
-                    'rol' => 'administrador',
-                    'estado' => true,
-                ]
-            );
+            $medicos = DB::table('medicos')
+                ->where('estado', true)
+                ->orderBy('id')
+                ->get(['id']);
 
-            // RECEPCIONISTAS
-            $recepcionistas = [];
-
-            for ($i = 1; $i <= 2; $i++) {
-                $recepcionistas[] = User::updateOrCreate(
-                    ['email' => "recepcion{$i}@clinicavidasalud.test"],
-                    [
-                        'name' => "Recepcionista Demo {$i}",
-                        'password' => $password,
-                        'rol' => 'recepcionista',
-                        'estado' => true,
-                    ]
-                );
-            }
-
-            // ESPECIALIDADES
-            $nombresEspecialidades = [
-                'Medicina General',
-                'Pediatría',
-                'Cardiología',
-                'Dermatología',
-                'Ginecología',
-                'Traumatología',
-                'Oftalmología',
-                'Odontología',
-                'Neurología',
-                'Endocrinología',
-            ];
-
-            $especialidades = [];
-
-            foreach ($nombresEspecialidades as $nombre) {
-                $especialidades[] = Especialidad::updateOrCreate(
-                    ['nombre' => $nombre],
-                    [
-                        'descripcion' => "Servicio de {$nombre}",
-                        'estado' => true,
-                    ]
-                );
-            }
-
-            // MÉDICOS
-            $nombres = [
-                'Carlos', 'María', 'José', 'Ana', 'Luis', 'Laura',
-                'Pedro', 'Sofía', 'Miguel', 'Daniela', 'Andrés', 'Valeria'
-            ];
-
-            $apellidos = [
-                'Méndez', 'Rojas', 'Flores', 'Gutiérrez',
-                'Vargas', 'Castro', 'Suárez', 'Rivera',
-                'Morales', 'Paz', 'Soria', 'Céspedes'
-            ];
-
-            $medicos = [];
-
-            for ($i = 0; $i < 12; $i++) {
-                $numero = $i + 1;
-                $nombre = $nombres[$i];
-                $apellido = $apellidos[$i];
-
-                $user = User::updateOrCreate(
-                    ['email' => sprintf('medico%02d@clinicavidasalud.test', $numero)],
-                    [
-                        'name' => "{$nombre} {$apellido}",
-                        'password' => $password,
-                        'rol' => 'medico',
-                        'estado' => true,
-                    ]
-                );
-
-                $medico = Medico::updateOrCreate(
-    ['registro_profesional' => sprintf('MED-DEMO-%03d', $numero)],  
-                    [
-                        'user_id' => $user->id,
-                        'nombres' => $nombre,
-                        'apellidos' => $apellido,
-                        'telefono' => sprintf('700%06d', $numero),
-                        'correo' => $user->email,
-                        'direccion' => 'Santa Cruz de la Sierra',
-                        'estado' => true,
-                    ]
-                );
-
-                $especialidad = $especialidades[$i % count($especialidades)];
-
-                $medico->especialidades()->syncWithoutDetaching([
-                    $especialidad->id
+            $horarios = DB::table('horarios_medicos')
+                ->where('estado', true)
+                ->get([
+                    'medico_id',
+                    'dia_semana',
+                    'hora_inicio',
+                    'hora_fin',
                 ]);
 
-                // HORARIOS: lunes a viernes
-                for ($dia = 1; $dia <= 5; $dia++) {
-                    HorarioMedico::firstOrCreate(
-                        [
-                            'medico_id' => $medico->id,
-                            'dia_semana' => $dia,
-                            'hora_inicio' => '08:00:00',
-                            'hora_fin' => '12:00:00',
-                        ],
-                        ['estado' => true]
-                    );
+            $especialidadesMedicos = DB::table('medico_especialidad as me')
+                ->join(
+                    'especialidades as e',
+                    'e.id',
+                    '=',
+                    'me.especialidad_id'
+                )
+                ->where('e.estado', true)
+                ->where('e.id', '!=', 2)
+                ->orderBy('e.id')
+                ->get([
+                    'me.medico_id',
+                    'me.especialidad_id',
+                ]);
 
-                    HorarioMedico::firstOrCreate(
-                        [
-                            'medico_id' => $medico->id,
-                            'dia_semana' => $dia,
-                            'hora_inicio' => '14:00:00',
-                            'hora_fin' => '18:00:00',
-                        ],
-                        ['estado' => true]
-                    );
-                }
-
-                $medicos[] = [
-                    'medico' => $medico,
-                    'especialidad' => $especialidad,
-                ];
+            if ($pacientes->isEmpty()) {
+                throw new RuntimeException(
+                    'No existen pacientes activos para generar las citas.'
+                );
             }
 
-            // PACIENTES
-            $nombresPacientes = [
-                'Gabriela', 'Fernando', 'Lucía', 'Roberto', 'Camila',
-                'Javier', 'Paola', 'Diego', 'Natalia', 'Ricardo',
-                'Andrea', 'Marco', 'Claudia', 'Sergio', 'Mónica',
-                'Raúl', 'Elena', 'Pablo', 'Carolina', 'Hugo',
-            ];
-
-            $pacientes = [];
-
-            for ($i = 1; $i <= 40; $i++) {
-                $nombre = $nombresPacientes[($i - 1) % count($nombresPacientes)];
-                $apellido = $apellidos[($i - 1) % count($apellidos)];
-                $email = sprintf('paciente%02d@clinicavidasalud.test', $i);
-
-                $user = User::updateOrCreate(
-                    ['email' => $email],
-                    [
-                        'name' => "{$nombre} {$apellido}",
-                        'password' => $password,
-                        'rol' => 'paciente',
-                        'estado' => true,
-                    ]
+            if ($medicos->isEmpty() || $horarios->isEmpty()) {
+                throw new RuntimeException(
+                    'No existen médicos activos con horarios disponibles.'
                 );
-
-                $paciente = Paciente::updateOrCreate(
-                    ['ci' => sprintf('DEMO-%07d', $i)],
-                    [
-                        'user_id' => $user->id,
-                        'nombres' => $nombre,
-                        'apellidos' => $apellido,
-                        'fecha_nacimiento' => Carbon::create(
-                            1970 + ($i % 30),
-                            1 + ($i % 12),
-                            1 + ($i % 27)
-                        )->toDateString(),
-                        'sexo' => $i % 2 === 0 ? 'F' : 'M',
-                        'telefono' => sprintf('760%06d', $i),
-                        'correo' => $email,
-                        'direccion' => 'Santa Cruz de la Sierra',
-                        'estado' => true,
-                    ]
-                );
-
-                $pacientes[] = $paciente;
             }
 
-            // CITAS Y PAGOS
-            $estados = [
-                'Programada',
-                'Atendida',
-                'Cancelada',
-                'Pendiente de pago',
+            /*
+            |--------------------------------------------------------------------------
+            | 2. Agrupar horarios y especialidades por médico
+            |--------------------------------------------------------------------------
+            */
+
+            $horariosPorMedico = [];
+
+            foreach ($horarios as $horario) {
+                $horariosPorMedico[$horario->medico_id]
+                    [$horario->dia_semana][] = $horario;
+            }
+
+            $especialidadPorMedico = [];
+
+            foreach ($especialidadesMedicos as $relacion) {
+                $especialidadPorMedico[$relacion->medico_id]
+                    [] = $relacion->especialidad_id;
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | 3. Eliminar datos anteriores de citas
+            |--------------------------------------------------------------------------
+            */
+
+            DB::table('pagos')->delete();
+
+            DB::table('historial_citas')->delete();
+
+            DB::table('citas')->delete();
+
+            /*
+            |--------------------------------------------------------------------------
+            | 4. Eliminar Pediatria sin tilde
+            |--------------------------------------------------------------------------
+            */
+
+            DB::table('medico_especialidad')
+                ->where('especialidad_id', 2)
+                ->delete();
+
+            DB::table('especialidades')
+                ->where('id', 2)
+                ->where('nombre', 'Pediatria')
+                ->delete();
+
+            /*
+            |--------------------------------------------------------------------------
+            | 5. Obtener usuario que registrará los historiales
+            |--------------------------------------------------------------------------
+            */
+
+            $usuarioResponsable = DB::table('users')
+                ->whereIn('rol', ['administrador', 'recepcionista'])
+                ->orderBy('id')
+                ->value('id');
+
+            /*
+            |--------------------------------------------------------------------------
+            | 6. Preparar generación de citas
+            |--------------------------------------------------------------------------
+            */
+
+            $hoy = Carbon::today();
+            $ahora = Carbon::now();
+
+            $fechaInicio = Carbon::parse('2026-08-01');
+            $fechaFin = Carbon::parse('2026-11-30');
+
+            $motivos = [
+                'Consulta general',
+                'Control médico',
+                'Dolor o molestia',
+                'Revisión médica',
+                'Seguimiento de tratamiento',
+                'Consulta preventiva',
+                'Evaluación médica',
             ];
 
             $contador = 0;
-            $fecha = Carbon::create(2026, 8, 7);
-            $limite = Carbon::create(2026, 11, 7);
+            $indicePaciente = 0;
 
-            while ($contador < 200 && $fecha->lte($limite)) {
+            // Controla que un paciente no tenga citas simultáneas.
+            $reservasPacientes = [];
 
-                if ($fecha->isWeekday()) {
-                    foreach ($medicos as $indice => $datosMedico) {
-                        if ($contador >= 200) {
-                            break;
+            /*
+            |--------------------------------------------------------------------------
+            | 7. Generar citas según los horarios existentes
+            |--------------------------------------------------------------------------
+            */
+
+            for (
+                $fecha = $fechaInicio->copy();
+                $fecha->lte($fechaFin);
+                $fecha->addDay()
+            ) {
+                $diaSemana = (int) $fecha->dayOfWeekIso;
+                $fechaTexto = $fecha->toDateString();
+
+                foreach ($medicos as $medico) {
+
+                    $medicoId = $medico->id;
+
+                    $bloques = $horariosPorMedico[$medicoId][$diaSemana]
+                        ?? [];
+
+                    $especialidades = $especialidadPorMedico[$medicoId]
+                        ?? [];
+
+                    if (empty($bloques) || empty($especialidades)) {
+                        continue;
+                    }
+
+                    /*
+                     * Si tiene varios bloques horarios, se alternan
+                     * para distribuir las citas entre ellos.
+                     */
+                    $indiceBloque = (
+                        (int) $fecha->dayOfYear
+                    ) % count($bloques);
+
+                    $bloque = $bloques[$indiceBloque];
+
+                    $inicio = Carbon::parse(
+                        $fechaTexto . ' ' . $bloque->hora_inicio
+                    )->addMinutes(30);
+
+                    $fin = $inicio->copy()->addMinutes(15);
+
+                    $finHorario = Carbon::parse(
+                        $fechaTexto . ' ' . $bloque->hora_fin
+                    );
+
+                    if ($fin->gt($finHorario)) {
+                        continue;
+                    }
+
+                    // No generar citas en horas que ya pasaron hoy.
+                    if ($inicio->lte(Carbon::now())) {
+                        if ($fecha->isSameDay($hoy)) {
+                            continue;
+                        }
+                    }
+
+                    /*
+                     * Buscar un paciente que no tenga otra cita
+                     * en el mismo intervalo de tiempo.
+                     */
+                    $pacienteSeleccionado = null;
+
+                    $cantidadPacientes = $pacientes->count();
+
+                    for ($i = 0; $i < $cantidadPacientes; $i++) {
+
+                        $indice = (
+                            $indicePaciente + $i
+                        ) % $cantidadPacientes;
+
+                        $candidato = $pacientes[$indice];
+
+                        $conflicto = false;
+
+                        $reservas = $reservasPacientes[$candidato->id]
+                            [$fechaTexto] ?? [];
+
+                        foreach ($reservas as $reserva) {
+
+                            if (
+                                $inicio->lt($reserva['fin'])
+                                && $fin->gt($reserva['inicio'])
+                            ) {
+                                $conflicto = true;
+                                break;
+                            }
                         }
 
-                        $hora = $contador % 2 === 0 ? '09:00:00' : '15:00:00';
+                        if (!$conflicto) {
+                            $pacienteSeleccionado = $candidato;
+                            $indicePaciente = ($indice + 1)
+                                % $cantidadPacientes;
+                            break;
+                        }
+                    }
 
-                        $paciente = $pacientes[$contador % count($pacientes)];
-                        $medico = $datosMedico['medico'];
-                        $especialidad = $datosMedico['especialidad'];
+                    if (!$pacienteSeleccionado) {
+                        continue;
+                    }
 
-                        $estado = $estados[$contador % count($estados)];
+                    $pacienteId = $pacienteSeleccionado->id;
 
-                        $codigo = sprintf('DEMO-%06d', $contador + 1);
+                    $reservasPacientes[$pacienteId][$fechaTexto][] = [
+                        'inicio' => $inicio->copy(),
+                        'fin' => $fin->copy(),
+                    ];
 
-                        $cita = Cita::firstOrCreate(
-                            ['codigo' => $codigo],
-                            [
-                                'paciente_id' => $paciente->id,
-                                'medico_id' => $medico->id,
-                                'especialidad_id' => $especialidad->id,
-                                'fecha' => $fecha->toDateString(),
-                                'hora_inicio' => $hora,
-                                'hora_fin' => Carbon::parse($hora)
-                                    ->addMinutes(15)->format('H:i:s'),
-                                'estado' => $estado,
-                                'motivo' => 'Consulta médica de demostración',
-                                'observaciones' => 'Registro ficticio para pruebas.',
-                            ]
-                        );
+                    $contador++;
 
-                        $metodo = $contador % 2 === 0 ? 'qr' : 'efectivo';
+                    /*
+                    |--------------------------------------------------------------------------
+                    | 8. Determinar estado de la cita
+                    |--------------------------------------------------------------------------
+                    */
 
-                        $estadoPago = match ($estado) {
-                            'Pendiente de pago' => 'Pendiente',
-                            'Cancelada' => 'Cancelado',
-                            default => 'Aprobado',
-                        };
+                    $esFutura = $inicio->gt(Carbon::now());
 
-                        Pago::updateOrCreate(
-                            ['cita_id' => $cita->id],
-                            [
-                                'usuario_id' => $paciente->user_id,
-                                'monto' => 100,
-                                'moneda' => 'BOB',
-                                'metodo' => $metodo,
-                                'estado' => $estadoPago,
-                                'referencia' => "DEMO-PAGO-" . ($contador + 1),
-                                'pagado_en' => $estadoPago === 'Aprobado'
-                                    ? $fecha->copy()->setTime(8, 0)
-                                    : null,
-                            ]
-                        );
+                    if ($esFutura) {
+                        // 80 % programadas y 20 % canceladas.
+                        $estado = ($contador % 10 < 8)
+                            ? 'Programada'
+                            : 'Cancelada';
+                    } else {
+                        // Históricas: atendidas, canceladas e inasistencias.
+                        $posicion = $contador % 10;
 
-                        HistorialCita::firstOrCreate(
-                            [
-                                'cita_id' => $cita->id,
-                                'accion' => 'Creada',
-                            ],
-                            [
-                                'usuario_id' => $admin->id,
-                                'detalle' => 'Cita generada por el conjunto de datos de demostración.',
-                            ]
-                        );
+                        if ($posicion < 6) {
+                            $estado = 'Atendida';
+                        } elseif ($posicion < 8) {
+                            $estado = 'Cancelada';
+                        } else {
+                            $estado = 'Inasistencia';
+                        }
+                    }
 
-                        $contador++;
+                    /*
+                    |--------------------------------------------------------------------------
+                    | 9. Crear cita
+                    |--------------------------------------------------------------------------
+                    */
+
+                    $especialidadId = $especialidades[
+                        ($contador - 1) % count($especialidades)
+                    ];
+
+                    $codigo = sprintf(
+                        'CVS-%s-%05d',
+                        $fecha->format('Ymd'),
+                        $contador
+                    );
+
+                    $citaId = DB::table('citas')->insertGetId([
+                        'codigo' => $codigo,
+                        'paciente_id' => $pacienteId,
+                        'medico_id' => $medicoId,
+                        'especialidad_id' => $especialidadId,
+                        'fecha' => $fechaTexto,
+                        'hora_inicio' => $inicio->format('H:i:s'),
+                        'hora_fin' => $fin->format('H:i:s'),
+                        'estado' => $estado,
+                        'motivo' => $motivos[
+                            ($contador - 1) % count($motivos)
+                        ],
+                        'observaciones' => null,
+                        'pago_expira_en' => null,
+                        'created_at' => $ahora,
+                        'updated_at' => $ahora,
+                    ]);
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | 10. Crear pago
+                    |--------------------------------------------------------------------------
+                    |
+                    | No se generan pagos PayPal.
+                    | Los pagos quedan aprobados.
+                    | Una cancelación no altera el estado del pago.
+                    */
+
+                    $metodo = ($contador % 2 === 0)
+                        ? 'qr'
+                        : 'efectivo';
+
+                    $fechaPago = $esFutura
+                        ? $ahora->copy()->subDay()
+                        : $inicio->copy()->subHour();
+
+                    DB::table('pagos')->insert([
+                        'cita_id' => $citaId,
+                        'usuario_id' => $pacienteSeleccionado->user_id,
+                        'monto' => 100.00,
+                        'moneda' => 'BOB',
+                        'metodo' => $metodo,
+                        'estado' => 'Aprobado',
+                        'referencia' => $metodo === 'qr'
+                            ? 'DEMO-QR-' . str_pad(
+                                (string) $contador,
+                                6,
+                                '0',
+                                STR_PAD_LEFT
+                            )
+                            : null,
+                        'pagado_en' => $fechaPago,
+                        'created_at' => $fechaPago,
+                        'updated_at' => $fechaPago,
+                    ]);
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | 11. Registrar historial de creación
+                    |--------------------------------------------------------------------------
+                    */
+
+                    $fechaRegistro = $esFutura
+                        ? $ahora->copy()->subDays(2)
+                        : $inicio->copy()->subDays(3);
+
+                    DB::table('historial_citas')->insert([
+                        'cita_id' => $citaId,
+                        'usuario_id' => $usuarioResponsable,
+                        'accion' => 'Cita programada',
+                        'fecha_anterior' => null,
+                        'hora_anterior' => null,
+                        'fecha_nueva' => $fechaTexto,
+                        'hora_nueva' => $inicio->format('H:i:s'),
+                        'detalle' => 'Cita registrada en el sistema.',
+                        'created_at' => $fechaRegistro,
+                        'updated_at' => $fechaRegistro,
+                    ]);
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | 12. Registrar el resultado de la cita
+                    |--------------------------------------------------------------------------
+                    */
+
+                    if ($estado !== 'Programada') {
+
+                        if ($estado === 'Atendida') {
+                            $accion = 'Consulta atendida';
+                            $fechaAccion = $inicio->copy()->addMinutes(30);
+                            $detalle = 'El paciente asistió y recibió atención médica.';
+                        } elseif ($estado === 'Inasistencia') {
+                            $accion = 'Inasistencia registrada';
+                            $fechaAccion = $inicio->copy()->addMinutes(30);
+                            $detalle = 'El paciente no asistió a su cita.';
+                        } else {
+                            $accion = 'Cita cancelada';
+
+                            $fechaAccion = $esFutura
+                                ? $fechaRegistro->copy()->addHours(2)
+                                : $inicio->copy()->subHours(2);
+
+                            $detalle = 'La cita fue cancelada.';
+                        }
+
+                        DB::table('historial_citas')->insert([
+                            'cita_id' => $citaId,
+                            'usuario_id' => $usuarioResponsable,
+                            'accion' => $accion,
+                            'fecha_anterior' => $fechaTexto,
+                            'hora_anterior' => $inicio->format('H:i:s'),
+                            'fecha_nueva' => null,
+                            'hora_nueva' => null,
+                            'detalle' => $detalle,
+                            'created_at' => $fechaAccion,
+                            'updated_at' => $fechaAccion,
+                        ]);
                     }
                 }
-
-                $fecha->addDay();
             }
 
-            // BITÁCORA
-            foreach ($recepcionistas as $recepcionista) {
-                Bitacora::firstOrCreate(
-                    [
-                        'user_id' => $recepcionista->id,
-                        'modulo' => 'Sistema',
-                        'accion' => 'Acceso demo',
-                    ],
-                    [
-                        'descripcion' => 'Usuario de recepción creado para demostración.',
-                        'metodo' => 'SEED',
-                        'ruta' => 'database/seeders/ClinicaDemoSeeder.php',
-                        'ip' => '127.0.0.1',
-                    ]
-                );
-            }
-
-            Bitacora::firstOrCreate(
-                [
-                    'user_id' => $admin->id,
-                    'modulo' => 'Sistema',
-                    'accion' => 'Carga demo',
-                ],
-                [
-                    'descripcion' => 'Carga inicial de datos ficticios de demostración.',
-                    'metodo' => 'SEED',
-                    'ruta' => 'database/seeders/ClinicaDemoSeeder.php',
-                    'ip' => '127.0.0.1',
-                ]
+            $this->command->info(
+                "Proceso completado. Se generaron {$contador} citas."
             );
         });
     }

@@ -39,11 +39,4 @@ return [
     'key' => env('GEMINI_API_KEY'),
 ],
 
-'paypal' => [
-    'mode' => env('PAYPAL_MODE', 'sandbox'),
-    'client_id' => env('PAYPAL_CLIENT_ID'),
-    'secret' => env('PAYPAL_SECRET'),
-    'base_url' => env('PAYPAL_BASE_URL', 'https://api-m.sandbox.paypal.com'),
-],
-
 ];

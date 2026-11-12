@@ -201,34 +201,15 @@
 
             <option value="">Seleccionar método</option>
 
-            <option value="efectivo"
-                {{ old('metodo_pago') === 'efectivo' ? 'selected' : '' }}>
-                Efectivo
-            </option>
-
-            <option value="qr"
-                {{ old('metodo_pago') === 'qr' ? 'selected' : '' }}>
-                QR
+            <option value="efectivo" selected>
+                Efectivo (pago presencial)
             </option>
 
         </select>
     </div>
 
-    <div id="referencia_pago_contenedor" class="hidden">
-        <label class="block text-sm font-semibold text-gray-700 mb-1">
-            Referencia de operación QR
-        </label>
-
-        <input type="text"
-               name="referencia_pago"
-               value="{{ old('referencia_pago') }}"
-               maxlength="255"
-               placeholder="Número de operación (opcional)"
-               class="w-full rounded-lg border-gray-300">
-    </div>
-
     <p class="text-xs text-gray-600">
-        Al guardar, el pago se registrará como aprobado.
+        El pago en efectivo se registrará como aprobado y la cita quedará programada inmediatamente.
     </p>
 
 </div>
@@ -262,19 +243,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const urlMedicos = @json(route('disponibilidad.medicos'));
     const urlTurnos = @json(route('disponibilidad.turnos'));
-
-    const metodoPago = document.getElementById('metodo_pago');
-const referenciaContenedor = document.getElementById('referencia_pago_contenedor');
-
-function actualizarReferenciaPago() {
-    referenciaContenedor.classList.toggle(
-        'hidden',
-        metodoPago.value !== 'qr'
-    );
-}
-
-metodoPago.addEventListener('change', actualizarReferenciaPago);
-actualizarReferenciaPago();
 
     let medicoAnterior = @json(old('medico_id'));
     const horaAnterior = @json(old('hora_inicio'));

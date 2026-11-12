@@ -96,6 +96,9 @@ Route::get('/reportes/csv', [ReporteController::class, 'csv'])
     Route::patch('/citas/{cita}/cancelar', [CitaController::class, 'cancelar'])
     ->name('citas.cancelar');
 
+    Route::patch('/citas/{cita}/aprobar-pago', [CitaController::class, 'aprobarPago'])
+    ->name('citas.aprobar-pago');
+
     // Gestión de médicos
     Route::resource('medicos', MedicoController::class)
     ->except(['show', 'destroy']);
@@ -162,7 +165,13 @@ Route::middleware(['auth', 'rol:recepcionista', 'bitacora'])
         ])->name('reprogramacion.ejecutar');
 
         Route::resource('citas', CitaController::class)
-        ->only(['index', 'create', 'store']);
+            ->only(['index', 'create', 'store']);
+
+        Route::patch('/citas/{cita}/cancelar', [CitaController::class, 'cancelar'])
+            ->name('citas.cancelar');
+
+        Route::patch('/citas/{cita}/aprobar-pago', [CitaController::class, 'aprobarPago'])
+            ->name('citas.aprobar-pago');
 });
 
 
@@ -214,17 +223,6 @@ Route::middleware(['auth', 'rol:paciente', 'bitacora'])
 
         Route::post('/reservar', [PacienteCitaController::class, 'store'])
             ->name('reservar.store');
-            // Pagos PayPal Sandbox
-Route::get('/paypal/retorno', [
-    PacienteCitaController::class,
-    'paypalRetorno'
-])->name('paypal.retorno');
-
-Route::get('/paypal/cancelado', [
-    PacienteCitaController::class,
-    'paypalCancelado'
-])->name('paypal.cancelado');
-
         Route::patch('/mis-citas/{cita}/cancelar', [
         PacienteCitaController::class,
         'cancelar'

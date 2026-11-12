@@ -142,19 +142,9 @@
                             <div>
                                 <p class="text-xs text-slate-400">Método</p>
                                 <p class="text-sm font-semibold text-slate-700">
-                                    {{ strtoupper($pago->metodo) === 'PAYPAL' ? 'PayPal' : ucfirst($pago->metodo) }}
+                                    {{ ucfirst($pago->metodo) }}
                                 </p>
                             </div>
-
-                            @if($pago->metodo === 'paypal' && $pago->monto_pasarela)
-                                <div>
-                                    <p class="text-xs text-slate-400">Equivalente en PayPal</p>
-                                    <p class="text-sm font-bold text-slate-800">
-                                        {{ $pago->moneda_pasarela ?? 'USD' }}
-                                        {{ number_format((float) $pago->monto_pasarela, 2) }}
-                                    </p>
-                                </div>
-                            @endif
 
                             @if($pago->tipo_cambio)
                                 <div>
@@ -193,13 +183,6 @@
 
                     @endif
 
-                    @if($cita->estado === 'Pendiente de pago' && $cita->pago_expira_en)
-                        <p class="mt-3 text-xs font-medium text-amber-700">
-                            Esta reserva vence el
-                            {{ $cita->pago_expira_en->format('d/m/Y H:i') }}.
-                        </p>
-                    @endif
-
                 </div>
 
                 {{-- Código y acciones --}}
@@ -214,11 +197,11 @@
                         </p>
                     </div>
 
-                    @if(in_array($cita->estado, ['Programada', 'Confirmada']))
+                    @if(in_array($cita->estado, ['Pendiente de pago', 'Programada', 'Confirmada'], true))
                         <form
                             action="{{ route('paciente.cancelar', $cita->id) }}"
                             method="POST"
-                            onsubmit="return confirm('¿Estás seguro de que deseas cancelar esta cita?');"
+                            onsubmit="return confirm('¿Estás seguro de que deseas cancelar esta cita? El estado del pago no cambiará.');"
                         >
                             @csrf
                             @method('PATCH')
